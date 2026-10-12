@@ -19,16 +19,23 @@ module IsbfPinning
       unless pinning && IsbfPinning.bool(params[IsbfPinning::HOME_FIELD])
         raise Discourse::InvalidParameters.new(IsbfPinning::HOME_FIELD)
       end
-      previous = RequestStore.store[IsbfPinning::REQUEST_KEY]
-      RequestStore.store[IsbfPinning::REQUEST_KEY] = { topic_id: params[:topic_id].to_i }
-      super
-      if response.status == 200 && @topic
-        body = JSON.parse(response.body)
-        body["isbf_home_pinning"] = IsbfPinning.metadata(@topic.reload, guardian)
-        self.response_body = body.to_json
+      previous_present = ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)
+      previous = ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY]
+      begin
+        ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY] = { topic_id: params[:topic_id].to_i }
+        super
+        if response.status == 200 && @topic
+          body = JSON.parse(response.body)
+          body["isbf_home_pinning"] = IsbfPinning.metadata(@topic.reload, guardian)
+          self.response_body = body.to_json
+        end
+      ensure
+        if previous_present
+          ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY] = previous
+        else
+          ActiveSupport::IsolatedExecutionState.delete(IsbfPinning::REQUEST_KEY)
+        end
       end
-    ensure
-      RequestStore.store[IsbfPinning::REQUEST_KEY] = previous if params.key?(IsbfPinning::HOME_FIELD)
     end
 
     def update
@@ -58,7 +65,7 @@ module IsbfPinning
       enabled = IsbfPinning.bool(enabled)
       options = opts.dup
       topic.with_lock do
-        request = RequestStore.store[IsbfPinning::REQUEST_KEY]
+        request = ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY]
         home = options[IsbfPinning::HOME_FIELD.to_sym] == true ||
           request&.fetch(:topic_id, nil) == topic.id || topic.custom_fields[IsbfPinning::HOME_FIELD] == true
         if home
