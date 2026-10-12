@@ -1,0 +1,9 @@
+zh_CN:
+  site_settings:
+    isbf_pinning_enabled: "启用原生置顶权限校验及首页排序。"
+    isbf_pinning_home_actions_enabled: "允许开发者新增或调整首页置顶。"
+    isbf_pinning_official_category_id: "首页官方分类的实际 ID；零表示未配置官方范围。"
+  isbf_pinning:
+    future_required: "请选择未来的置顶截止日期和时间。"
+    unavailable: "此帖子不能在首页置顶。"
+    invalid: "置顶请求无效。"

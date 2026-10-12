@@ -1,0 +1,11 @@
+plugins:
+  isbf_pinning_enabled:
+    default: true
+    client: false
+  isbf_pinning_home_actions_enabled:
+    default: true
+    client: false
+  isbf_pinning_official_category_id:
+    default: 0
+    min: 0
+    client: false

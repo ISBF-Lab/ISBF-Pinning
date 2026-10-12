@@ -1,0 +1,9 @@
+en:
+  site_settings:
+    isbf_pinning_enabled: "Enable native topic pinning guards and home-feed ordering."
+    isbf_pinning_home_actions_enabled: "Allow developers to create or change home-feed pins."
+    isbf_pinning_official_category_id: "Actual official category for the home Official feed. Zero disables the Official scope."
+  isbf_pinning:
+    future_required: "Choose a future date and time for the pin to expire."
+    unavailable: "This topic cannot be pinned to the home feed."
+    invalid: "Invalid pinning request."
