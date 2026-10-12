@@ -100,18 +100,99 @@ RSpec.describe "ISBF timed home pinning", type: :request do
   end
 
   it "sets, renews and cancels a home deadline while keeping one topic" do
+    hide_const("RequestStore")
     deadline = 5.days.from_now.change(sec: 0)
     expect { status_request(until: deadline.iso8601) }.not_to change(Topic, :count)
     expect(response.status).to eq(200), response.body
+    expect(response.parsed_body).to have_key("topic_status_update")
+    expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(false)
     expect(topic.reload.pinned_until).to eq(deadline)
     deadline += 2.days
     status_request(until: deadline.iso8601)
     expect(response.status).to eq(200), response.body
+    expect(response.parsed_body).to have_key("topic_status_update")
+    expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(false)
     expect(topic.reload.pinned_until).to eq(deadline)
     status_request(enabled: false)
     expect(response.status).to eq(200), response.body
+    expect(response.parsed_body).to have_key("topic_status_update")
+    expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(false)
     expect(response.parsed_body["isbf_home_pinning"]).to include("scoped" => false, "active" => false)
     expect(topic.reload.pinned_at).to be_nil
+
+    put "/t/#{topic.id}/status.json", params: { status: "pinned", enabled: true }
+    expect(response.status).to eq(200), response.body
+    expect(topic.reload.pinned_at).to be_present
+    expect(topic.pinned_globally).to eq(false)
+    expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to be_nil
+    expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(false)
+  end
+
+  context "with Rails execution state and no RequestStore" do
+    before { hide_const("RequestStore") }
+
+    around do |example|
+      previous_present = ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)
+      previous = ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY]
+      ActiveSupport::IsolatedExecutionState.delete(IsbfPinning::REQUEST_KEY)
+      begin
+        example.run
+      ensure
+        if previous_present
+          ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY] = previous
+        else
+          ActiveSupport::IsolatedExecutionState.delete(IsbfPinning::REQUEST_KEY)
+        end
+      end
+    end
+
+    [false, true].each do |ineligible|
+      it "restores inherited state after a #{ineligible ? 'failed' : 'successful'} native status request" do
+        sign_in(admin)
+        first_post.update!(hidden: true) if ineligible
+        [nil, { topic_id: -1 }].each do |previous|
+          ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY] = previous
+          status_request(actor: nil)
+          expect(response.status).to eq(ineligible ? 403 : 200), response.body
+          expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(true)
+          expect(ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY]).to equal(previous)
+        end
+      end
+    end
+
+    it "preserves inherited state when validation rejects the request before scoping it" do
+      previous = { topic_id: -1 }
+      [
+        [member, {}, 403],
+        [admin, { until: "not-a-date" }, 400],
+        [admin, { enabled: "yes" }, 400],
+        [admin, { isbf_home_pin: false }, 400],
+        [admin, { status: "closed" }, 400],
+      ].each do |actor, fields, expected_status|
+        sign_in(actor)
+        ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY] = previous
+        status_request(actor: nil, **fields)
+        expect(response.status).to eq(expected_status), response.body
+        expect(ActiveSupport::IsolatedExecutionState[IsbfPinning::REQUEST_KEY]).to equal(previous)
+      end
+    end
+
+    it "clears failed home scope before a later native pin on the same topic" do
+      sign_in(admin)
+      first_post.update!(hidden: true)
+      status_request(actor: nil)
+      expect(response.status).to eq(403), response.body
+      expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(false)
+
+      first_post.update!(hidden: false)
+      put "/t/#{topic.id}/status.json", params: { status: "pinned", enabled: true }
+      expect(response.status).to eq(200), response.body
+      expect(response.parsed_body).to have_key("topic_status_update")
+      expect(topic.reload.pinned_at).to be_present
+      expect(topic.pinned_globally).to eq(false)
+      expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to be_nil
+      expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(false)
+    end
   end
 
   ["", "forever", "not-a-date", "1900-01-01T12:00:00Z", "2100-02-31T12:00:00Z"].each do |deadline|
