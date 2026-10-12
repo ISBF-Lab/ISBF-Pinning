@@ -18,6 +18,8 @@ after_initialize do
 
   register_topic_custom_field_type(IsbfPinning::HOME_FIELD, :boolean)
   add_preloaded_topic_list_custom_field(IsbfPinning::HOME_FIELD)
+  add_preloaded_topic_list_custom_field("isbf_marketplace_home")
+  add_preloaded_topic_list_custom_field("isbf_teamup_home")
 
   add_to_serializer(:site, :isbf_pinning) do
     {

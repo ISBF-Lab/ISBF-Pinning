@@ -53,7 +53,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     expect(response.parsed_body["success"]).to be_present
     metadata = response.parsed_body.fetch("isbf_home_pinning")
     expect(metadata).to include("can_manage" => true, "scoped" => true, "active" => true)
-    expect(Time.iso8601(metadata["pinned_until"])).to eq(3.days.from_now)
+    expect(Time.iso8601(metadata["pinned_until"])).to eq(3.days.from_now.change(usec: 0))
     expect(topic.reload.pinned_globally).to eq(true)
     expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to eq(true)
     get "/t/#{topic.id}.json"
@@ -168,7 +168,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     freeze_time
     put "/topics/bulk.json", params: { topic_ids: [topic.id], operation: { type: "pin", pinned_globally: true } }
     expect(response.status).to eq(200), response.body
-    expect(topic.reload.pinned_until).to eq(3.days.from_now)
+    expect(topic.reload.pinned_until).to eq(3.days.from_now.change(usec: 0))
     expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to be_nil
   end
 
@@ -186,6 +186,30 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(true)
     metadata = response.parsed_body.dig("topic_list", "topics").find { |t| t["id"] == new_pin.id }.fetch("isbf_home_pinning")
     expect(metadata).to include("active" => true, "can_manage" => false)
+  end
+
+  it "serializes home pins when optional companion home fields are absent" do
+    record = make_topic(age: 10.days.ago, home_pin: true)
+    sign_in(member)
+    get "/latest.json"
+    expect(ids).to include(record.id)
+    metadata = response.parsed_body.dig("topic_list", "topics").find { |t| t["id"] == record.id }.fetch("isbf_home_pinning")
+    expect(metadata).to include("active" => true, "scoped" => true)
+  end
+
+  %w[isbf_marketplace_home isbf_teamup_home].each do |field|
+    [true, false].each do |home_visible|
+      it "preloads #{field}=#{home_visible} when serializing a native topic list" do
+        record = make_topic(age: 10.days.ago, home_pin: true)
+        record.custom_fields[field] = home_visible
+        record.save_custom_fields
+        sign_in(member)
+        get "/c/#{category.slug}/#{category.id}/l/latest.json"
+        expect(ids).to include(record.id)
+        metadata = response.parsed_body.dig("topic_list", "topics").find { |t| t["id"] == record.id }.fetch("isbf_home_pinning")
+        expect(metadata).to include("active" => home_visible, "scoped" => true)
+      end
+    end
   end
 
   it "preserves caller-requested alternative ordering and category navigation outside the home feed" do

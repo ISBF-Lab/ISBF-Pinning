@@ -60,7 +60,7 @@ module IsbfPinning
       topic.with_lock do
         request = RequestStore.store[IsbfPinning::REQUEST_KEY]
         home = options[IsbfPinning::HOME_FIELD.to_sym] == true ||
-          request&.fetch(:topic_id, nil) == topic.id || IsbfPinning.scoped?(topic)
+          request&.fetch(:topic_id, nil) == topic.id || topic.custom_fields[IsbfPinning::HOME_FIELD] == true
         if home
           unless IsbfPinning.new_actions? && (!enabled || IsbfPinning.eligible?(topic, Guardian.new(user)))
             raise Discourse::InvalidAccess

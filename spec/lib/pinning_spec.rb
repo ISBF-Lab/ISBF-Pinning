@@ -143,7 +143,7 @@ RSpec.describe IsbfPinning do
   it "retimes through native fields and rejects permanent native status requests" do
     freeze_time
     TopicStatusUpdater.new(topic, admin).update!("pinned", true)
-    expect(topic.reload.pinned_until).to eq(3.days.from_now)
+    expect(topic.reload.pinned_until).to eq(3.days.from_now.change(usec: 0))
     expect(topic.pinned_globally).to eq(false)
     expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to be_nil
     expect do
@@ -162,6 +162,17 @@ RSpec.describe IsbfPinning do
     expect(topic.reload.pinned_at).to be_nil
     expect(topic.pinned_until).to be_nil
     expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to be_nil
+  end
+
+  it "restores a retained home scope when native pin consistency has cleared the pin fields" do
+    native_pin
+    topic.update_columns(pinned_at: nil, pinned_until: nil, pinned_globally: false)
+    expect(topic.reload.custom_fields[IsbfPinning::HOME_FIELD]).to eq(true)
+    new_until = 7.days.from_now.change(usec: 0)
+    TopicStatusUpdater.new(topic, admin).update!("pinned", true, until: new_until.iso8601)
+    expect(topic.reload.pinned_globally).to eq(true)
+    expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to eq(true)
+    expect(topic.pinned_until).to eq(new_until)
   end
 
   it "does not let an old running unpin job cancel a renewed pin early" do
