@@ -57,6 +57,13 @@ module("Integration | Component | IsbfPinnedBarPreview", function (hooks) {
     const bar = document.querySelector(".isbf-pinned-bar");
     const image = document.querySelector(".isbf-pinned-bar__image");
     const boundary = document.querySelector(".isbf-pinning-preview__boundary");
+    await waitUntil(
+      () =>
+        Math.abs(
+          boundary.getBoundingClientRect().height -
+            bar.getBoundingClientRect().height
+        ) < 0.5
+    );
     const foldedHeight = bar.getBoundingClientRect().height;
     const foldedImageStyle = image.getAttribute("style");
     const original = document.querySelector(".isbf-pinning-original");
@@ -117,7 +124,9 @@ module("Integration | Component | IsbfPinnedBarPreview", function (hooks) {
       </template>
     );
     await waitUntil(
-      () => document.querySelector(".isbf-pinned-bar__image")?.style.height
+      () =>
+        document.querySelector(".isbf-pinned-bar__image")?.style.height &&
+        document.querySelector(".isbf-pinned-bar").clientWidth <= 390
     );
     assert.dom(".isbf-pinned-bar__background").hasClass("is-clipped");
     assert.dom(".isbf-pinned-bar__image").hasAttribute("src", this.image);
