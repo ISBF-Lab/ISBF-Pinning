@@ -16,6 +16,8 @@ requests return `isbf_home_pinning` with `can_manage`, `scoped`, `active`, `pinn
 `pinned_until`. The same metadata is present in native topic-list items and topic details.
 Native topic-list responses include boolean `topic_list.isbf_home_pinning_scope` so clients
 must not infer ordering from the current screen or an unrelated background request.
+The chronological home feed reports this flag as false so existing clients retain the
+server's date order; the dedicated bar and Official pin-priority lists report true.
 
 Only the underlying User `admin` column authorizes human pinning, renewal and cancellation.
 On this installation that is the developer role; renamed moderator, official memberships,

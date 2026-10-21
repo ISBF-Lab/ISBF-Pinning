@@ -94,7 +94,8 @@ module IsbfPinning
           )
       @isbf_home_feed_query = filter == :latest && category_id.nil?
       result = super
-      result.isbf_home_pinning_scope = isbf_home_pin_query?
+      result.isbf_home_pinning_scope =
+        isbf_home_pin_query? && (!isbf_home_feed_query? || options[:isbf_pinning_bar] == true)
       result
     ensure
       @isbf_home_pin_query = previous

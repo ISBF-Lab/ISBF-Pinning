@@ -301,11 +301,14 @@ RSpec.describe "ISBF timed home pinning", type: :request do
       cleared_pinned_at: Time.current,
       last_read_post_number: 1,
     )
+    sequence = [recent.id, older.id, old_pin.id, new_pin.id]
+    get "/latest.json"
+    expect(ids & sequence).to eq(sequence)
+    expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(false)
     sign_in(member)
     get "/latest.json"
-    sequence = [recent.id, older.id, old_pin.id, new_pin.id]
     expect(ids & sequence).to eq(sequence)
-    expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(true)
+    expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(false)
     metadata =
       response
         .parsed_body
@@ -315,6 +318,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     expect(metadata).to include("active" => true, "can_manage" => false)
     get "/isbf/pinning/topics.json"
     expect(ids).to eq([new_pin.id, old_pin.id])
+    expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(true)
   end
 
   it "serializes home pins when optional companion home fields are absent" do
