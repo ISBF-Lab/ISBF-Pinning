@@ -2,6 +2,9 @@
 
 Native Discourse timed pins with developer-only human control and an ISBF home-feed scope.
 No Core edits, database tables, upload endpoints or replacement topic infrastructure.
+The homepage bar uses a read-only list endpoint and the native settings/upload APIs.
+See [Pinned bar and appearance editor](docs/PINNED_BAR.md) for configuration, geometry,
+permissions, compatibility and validation details.
 
 ## Contract
 
@@ -54,10 +57,9 @@ are retained on rollback.
 
 ## Verification
 
-CI runs native request/query/permission/timing specs against the accessible upstream Core
-`2b7d4b0063543e910fd0cdc3d6c94d9347085f49`, plus Ruby and shell syntax checks. Production has
-peer Core changes at `132cc95d043db01251eedf9c93b3927cd5ffee91`; the actual status, query,
-expiry, Academy role and latest-created source was inspected for compatibility. Companion
-Marketplace/Teamup/Official integration specs are skipped if those plugins are absent in
-isolated CI and require separate existing-site read-only checks. CI is not browser, real-role,
-light/dark, mobile-keyboard or device validation.
+Run native request/query/permission/timing specs from `spec/`, and browser tests from
+`test/javascripts/`, against the target Core and its locked dependencies. The bar candidate
+uses Core `5a56f19ded90fe7f041222e2ad4bcdca63b9eb5a`. Companion Marketplace/Teamup/Official
+integration specs are skipped when those plugins are absent and require the matching
+isolated integration environment. Native test passes do not replace real-role, light/dark,
+mobile-keyboard, device or user web acceptance.

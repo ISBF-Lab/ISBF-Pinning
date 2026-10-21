@@ -1,13 +1,19 @@
 # frozen_string_literal: true
 
 # name: isbf-pinning
-# about: Developer-only timed pins scoped to native ISBF home feeds.
-# version: 0.1.0
+# about: Native ISBF home pins with a collapsible bar and developer appearance settings.
+# version: 0.2.0
 # authors: ISBF Lab
 # url: https://github.com/ISBF-Lab/ISBF-Pinning
 # required_version: 3.4.0
 
+require_relative "lib/isbf_pinning/bar_appearance_validator"
+require_relative "lib/isbf_pinning/bar_background_validator"
+
 register_svg_icon "thumbtack"
+register_svg_icon "chevron-down"
+register_asset "stylesheets/common/pinned-bar.scss"
+register_asset "stylesheets/admin/pinned-bar-editor.scss", :admin
 
 enabled_site_setting :isbf_pinning_enabled
 
@@ -15,6 +21,36 @@ after_initialize do
   require_relative "lib/isbf_pinning"
   require_relative "lib/isbf_pinning/native_queries"
   require_relative "lib/isbf_pinning/native_mutations"
+  require_relative "lib/isbf_pinning/bar_topics"
+  require_relative "lib/isbf_pinning/bar_upload"
+  require_relative "lib/isbf_pinning/bar_serializers"
+
+  module ::IsbfPinning
+    class Engine < ::Rails::Engine
+      engine_name "isbf-pinning"
+      isolate_namespace IsbfPinning
+    end
+
+    class BarTopicsController < ::ApplicationController
+      requires_plugin "isbf-pinning"
+
+      def index
+        raise Discourse::NotFound unless SiteSetting.isbf_pinning_enabled
+        response.headers["Cache-Control"] = "no-store"
+        render_serialized(
+          IsbfPinning::BarTopics.list(current_user),
+          IsbfPinning::BarListSerializer,
+          root: "topic_list",
+        )
+      end
+    end
+  end
+
+  IsbfPinning::Engine.routes.draw { get "/topics" => "bar_topics#index" }
+  Discourse::Application.routes.append { mount ::IsbfPinning::Engine, at: "/isbf/pinning" }
+  UploadCreator.prepend(IsbfPinning::BarUpload)
+  UploadsController.prepend(IsbfPinning::BarUploadController)
+  Admin::SiteSettingsController.prepend(IsbfPinning::BarSettingsController)
 
   register_topic_custom_field_type(IsbfPinning::HOME_FIELD, :boolean)
   add_preloaded_topic_list_custom_field(IsbfPinning::HOME_FIELD)
