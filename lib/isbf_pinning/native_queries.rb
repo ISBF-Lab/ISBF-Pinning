@@ -25,18 +25,28 @@ module IsbfPinning
   def self.legacy_sql(query, options)
     category_id = query.options[:category_id] || options[:category_id]
     category = category_id ? "topics.category_id = #{category_id.to_i}" : "topics.pinned_globally"
-    clear = query.user ? "AND (topics.pinned_at > tu.cleared_pinned_at OR tu.cleared_pinned_at IS NULL)" : ""
+    clear =
+      (
+        if query.user
+          "AND (topics.pinned_at > tu.cleared_pinned_at OR tu.cleared_pinned_at IS NULL)"
+        else
+          ""
+        end
+      )
     "(NOT (#{scope_sql}) AND #{category} AND topics.pinned_at IS NOT NULL #{clear})"
   end
 
   def self.ordered_home_scope(topics, query, options)
     return topics unless topics.is_a?(ActiveRecord::Relation)
-    active = active_sql
-    legacy = legacy_sql(query, options)
     if defined?(IsbfMarketplace) && IsbfMarketplace.respond_to?(:home_scope)
       topics = IsbfMarketplace.home_scope(topics)
     end
     topics = IsbfTeamup.home_scope(topics) if defined?(IsbfTeamup)
+    if query.isbf_home_feed_query? && !options[:isbf_pinning_bar]
+      return topics.reorder(created_at: :desc, id: :desc)
+    end
+    active = active_sql
+    legacy = legacy_sql(query, options)
     topics.reorder(Arel.sql(<<~SQL.squish))
       CASE WHEN #{active} OR #{legacy} THEN 0 ELSE 1 END,
       CASE WHEN #{active} OR #{legacy} THEN topics.pinned_at END DESC,
@@ -53,8 +63,13 @@ module IsbfPinning
       @isbf_home_pin_query == true
     end
 
+    def isbf_home_feed_query?
+      isbf_home_pin_query? && @isbf_home_feed_query == true
+    end
+
     def create_list(filter, options = {}, topics = nil, &block)
       previous = @isbf_home_pin_query
+      previous_home_feed = @isbf_home_feed_query
       merged = options.merge(@options)
       category_id = get_category_id(merged[:category]) || merged[:category_id]
       category_id = category_id.to_i if category_id
@@ -62,24 +77,35 @@ module IsbfPinning
       query_orders = merged[:q].to_s.scan(/(?:\A|\s)order:([^\s]+)/).flatten
       native_order = merged[:order].blank? || %w[activity default].include?(merged[:order])
       native_order &&= query_orders.all? { |order| %w[activity default].include?(order) }
-      ordinary = native_order && merged[:ascending].to_s != "true" &&
-        merged[:tags].blank? && merged[:filtered_to_user].blank?
-      @isbf_home_pin_query = ordinary && (
-        (filter == :latest && merged[:q].blank? &&
-          (category_id.nil? || (official_id && category_id == official_id))) ||
-        (filter == :filter && official_id &&
-          merged[:q].to_s.match?(/(?:\A|\s)isbf-official:#{official_id}(?=\s|\z)/))
-      )
+      ordinary =
+        native_order && merged[:ascending].to_s != "true" && merged[:tags].blank? &&
+          merged[:filtered_to_user].blank?
+      @isbf_home_pin_query =
+        ordinary &&
+          (
+            (
+              filter == :latest && merged[:q].blank? &&
+                (category_id.nil? || (official_id && category_id == official_id))
+            ) ||
+              (
+                filter == :filter && official_id &&
+                  merged[:q].to_s.match?(/(?:\A|\s)isbf-official:#{official_id}(?=\s|\z)/)
+              )
+          )
+      @isbf_home_feed_query = filter == :latest && category_id.nil?
       result = super
-      result.isbf_home_pinning_scope = isbf_home_pin_query?
+      result.isbf_home_pinning_scope =
+        isbf_home_pin_query? && (!isbf_home_feed_query? || options[:isbf_pinning_bar] == true)
       result
     ensure
       @isbf_home_pin_query = previous
+      @isbf_home_feed_query = previous_home_feed
     end
 
     def list_category_topic_ids(category)
       query = default_results(category: category.id)
-      clause = "topics.category_id = #{category.id.to_i} AND topics.pinned_at IS NOT NULL AND NOT (#{IsbfPinning.scope_sql})"
+      clause =
+        "topics.category_id = #{category.id.to_i} AND topics.pinned_at IS NOT NULL AND NOT (#{IsbfPinning.scope_sql})"
       pinned = query.where(clause).limit(nil).reorder(pinned_at: :desc).pluck(:id)
       ordinary = query.where("NOT (#{clause})").pluck(:id)
       pinned + ordinary

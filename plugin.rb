@@ -2,7 +2,7 @@
 
 # name: isbf-pinning
 # about: Native ISBF home pins with a collapsible bar and developer appearance settings.
-# version: 0.2.0
+# version: 0.2.1
 # authors: ISBF Lab
 # url: https://github.com/ISBF-Lab/ISBF-Pinning
 # required_version: 3.4.0
