@@ -98,8 +98,8 @@ module("Unit | Lib | pinned-bar", function () {
       width: 600,
       height: 60,
       headerHeight: 60,
-      imageWidth: 400,
-      imageHeight: 1600,
+      imageWidth: 1600,
+      imageHeight: 100,
       mobile: false,
       appearance: DEFAULT_APPEARANCE.light,
     };
@@ -113,6 +113,51 @@ module("Unit | Lib | pinned-bar", function () {
       cover.visible,
       contain.visible,
       "the original-image visible region changes with scale and offset"
+    );
+  });
+
+  test("manual zoom and horizontal crop remain proportional across viewport sizes", function (assert) {
+    const options = {
+      width: 600,
+      height: 60,
+      headerHeight: 60,
+      imageWidth: 1600,
+      imageHeight: 400,
+      mobile: false,
+      appearance: DEFAULT_APPEARANCE.light,
+      imageTransform: { scale: 1.5, x: 0.2 },
+    };
+    const desktop = backgroundGeometry(options);
+    const mobile = backgroundGeometry({
+      ...options,
+      width: 390,
+      height: 52,
+      headerHeight: 52,
+      mobile: true,
+    });
+    assert.deepEqual(desktop.image, {
+      width: 900,
+      height: 225,
+      x: -30,
+      y: -82.5,
+    });
+    assert.closeTo(
+      desktop.above + desktop.height + desktop.below,
+      225,
+      0.001,
+      "the artwork reserves its actual height"
+    );
+    assert.closeTo(
+      -desktop.image.x / desktop.image.width,
+      -mobile.image.x / mobile.image.width,
+      0.000001,
+      "saved crop origin does not depend on editor width"
+    );
+    assert.closeTo(
+      desktop.width / desktop.image.width,
+      mobile.width / mobile.image.width,
+      0.000001,
+      "saved crop width is responsive"
     );
   });
 

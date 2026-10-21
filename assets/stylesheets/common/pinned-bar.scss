@@ -1,3 +1,9 @@
+.isbf-pinned-bar-space {
+  box-sizing: border-box;
+  width: 100%;
+  padding-block: var(--pin-overflow-above, 0) var(--pin-overflow-below, 0);
+}
+
 .isbf-pinned-bar {
   --pin-text: var(--isbf-v2-text, var(--primary));
   --pin-muted: var(--isbf-v2-muted, var(--primary-high));
@@ -9,7 +15,7 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  margin-block: var(--pin-space);
+  margin-block: 0;
   color: var(--pin-text);
   border-radius: var(--pin-radius);
 
@@ -23,7 +29,7 @@
   }
 
   &::before {
-    z-index: 0;
+    z-index: 1;
     background: var(--pin-fill);
     box-shadow: 0 4px 16px color-mix(in srgb, var(--primary) 6%, transparent);
   }
@@ -36,7 +42,7 @@
 
   &__background {
     position: absolute;
-    z-index: 1;
+    z-index: 0;
     inset: calc(0px - var(--pin-overflow-above, 0px)) 0
       calc(0px - var(--pin-overflow-below, 0px));
     overflow: hidden;
@@ -353,16 +359,13 @@
     border-radius: 16px;
   }
 
-  .isbf-pinned-bar {
-    margin-block: 0;
+  .isbf-pinned-bar-space {
+    padding-block: 0;
   }
 
   &__checker {
     position: absolute;
-    top: var(--preview-image-top);
-    inset-inline-start: var(--preview-image-left);
-    width: var(--preview-image-width);
-    height: var(--preview-image-height);
+    inset: 0;
     background-color: var(--secondary);
     background-image: conic-gradient(
       var(--primary-low) 25%,

@@ -15,3 +15,4 @@ zh_CN:
     future_required: "请选择未来的置顶截止日期和时间。"
     unavailable: "此帖子不能在首页置顶。"
     invalid: "置顶请求无效。"
+    invalid_background_crop: "无法保存图片裁剪，请保留部分图片在框内，并确保结果不超过 5 MB、单边 8192 px 和 1600 万像素。"

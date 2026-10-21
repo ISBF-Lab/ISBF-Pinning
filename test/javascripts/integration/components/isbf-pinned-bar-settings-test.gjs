@@ -1,4 +1,11 @@
-import { click, fillIn, render, settled } from "@ember/test-helpers";
+import {
+  click,
+  fillIn,
+  render,
+  settled,
+  triggerKeyEvent,
+  waitUntil,
+} from "@ember/test-helpers";
 import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
 import pretender from "discourse/tests/helpers/create-pretender";
@@ -29,6 +36,7 @@ module("Integration | Component | IsbfPinnedBarSettings", function (hooks) {
         max_file_size_kb: 5120,
       })),
     ];
+    this.settings = settings;
     pretender.get("/admin/site_settings.json", () => [
       200,
       { "Content-Type": "application/json" },
@@ -59,9 +67,87 @@ module("Integration | Component | IsbfPinnedBarSettings", function (hooks) {
       }),
     ]);
     pretender.put("/admin/site_settings/bulk_update.json", (request) => {
-      this.saved.push(new URLSearchParams(request.requestBody));
+      const values = new URLSearchParams(request.requestBody);
+      this.saved.push(values);
+      for (const setting of settings) {
+        setting.value =
+          values.get(`settings[${setting.setting}][value]`) ?? setting.value;
+      }
       return [204, {}, ""];
     });
+  });
+
+  test("manual image adjustment crops before saving and keeps preview aids out of settings", async function (assert) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 200;
+    canvas.getContext("2d").fillRect(0, 0, 800, 200);
+    const original = canvas.toDataURL();
+    canvas.width = 533;
+    const cropped = canvas.toDataURL();
+    const imageKey = "isbf_pinning_bar_light_desktop_image";
+    this.settings.find((setting) => setting.setting === imageKey).value =
+      original;
+    const crops = [];
+    pretender.post("/isbf/pinning/backgrounds/crop.json", (request) => {
+      crops.push(new URLSearchParams(request.requestBody));
+      return [
+        201,
+        { "Content-Type": "application/json" },
+        JSON.stringify({ url: cropped }),
+      ];
+    });
+    await render(<template><IsbfPinnedBarSettings /></template>);
+    await click(".isbf-pinning-editor__preview-controls .btn:nth-child(5)");
+    await waitUntil(() =>
+      document.querySelector(".isbf-pinning-image-editor__selection")
+    );
+    await fillIn(
+      `input[name="image_adjustments.${imageKey}.scale"][type="number"]`,
+      "150"
+    );
+    await triggerKeyEvent(
+      ".isbf-pinning-image-editor__move",
+      "keydown",
+      "ArrowRight"
+    );
+    assert.true(
+      Number(
+        document.querySelector(
+          `input[name="image_adjustments.${imageKey}.offset_x"][type="number"]`
+        ).value
+      ) > 0,
+      "the image can be moved with the keyboard"
+    );
+    await fillIn(
+      `input[name="image_adjustments.${imageKey}.offset_x"][type="number"]`,
+      "10"
+    );
+    await fillIn('input[name="light.fill"]', "#12345610");
+    await click(".isbf-pinning-editor__preview-controls .btn:nth-child(6)");
+    assert.dom('input[name="light.fill"]').hasValue("#123456ff");
+    await click('button[type="submit"]');
+    assert.strictEqual(
+      crops.length,
+      1,
+      "only the edited desktop asset needs a derived upload"
+    );
+    assert.closeTo(Number(crops[0].get("crop_width")), 2 / 3, 0.00001);
+    assert.closeTo(Number(crops[0].get("crop_left")), 0.1, 0.00001);
+    assert.strictEqual(crops[0].get("upload_url"), original);
+    assert.strictEqual(
+      this.saved[0].get(`settings[${imageKey}][value]`),
+      cropped
+    );
+    assert.false(
+      [...this.saved[0].keys()].some((key) =>
+        key.includes("image_adjustments")
+      ),
+      "transform controls never become public settings"
+    );
+    assert
+      .dom(".isbf-pinning-image-editor")
+      .doesNotExist("saved pixels replace temporary transforms");
   });
 
   hooks.afterEach(function () {

@@ -33,10 +33,10 @@ en:
         guides_help: "The solid outline marks the pinned bar. Areas above and below show the image extension. These guides appear only in this developer preview."
         above: "Upper extension area"
         below: "Lower extension area"
-        visible: "Pinned bar visible area"
+        visible: "Bar area (masked at 100% fill opacity)"
         original: "Complete background image and visible range"
         image_requirements: "Background image requirements"
-        image_help: "Desktop: 1600 × 400 px recommended; mobile: 900 × 320 px. Other aspect ratios are accepted. Use transparent PNG or WebP for decorations extending above and below, and keep important decoration near the horizontal center. Unwanted areas can be transparent. Keep titles, avatars and controls out of the image. The image stays behind all content and never receives pointer events. Turn off extension to clip it inside the bar. Uploads accept PNG, WebP and JPEG up to 5 MB, 8192 px per edge and 16 megapixels. Mobile falls back only to the desktop image of the same mode."
+        image_help: "Start with a 1600 px desktop width or 900 px mobile width; choose the height for your decoration instead of a fixed aspect ratio, and trim unused transparent margins at the top and bottom. Use the preview guides to locate the bar. Keep the middle transparent: the site draws the fill and rounded border, and a 100% opaque fill hides the picture inside the bar. Place visible decoration above, below or around that region; do not paint a dark bar, border, title, avatar or controls into the image. Drag or scale it to align it; horizontal overflow is discarded when saved. PNG/WebP support transparency; JPEG does not. Maximum 5 MB, 8192 px per edge, 16 megapixels."
         no_topics: "There are no accessible active pinned posts. The public bar stays hidden; create a pin to preview the layout with real data."
         save: "Save pinned bar appearance"
         saved: "Pinned bar appearance saved."
@@ -44,3 +44,19 @@ en:
         retry: "Reload pinned bar settings"
         invalid_color: "Use an eight-digit RGBA hex color, for example #ffffff00 for fully transparent."
         invalid_number: "Enter a number between %{min} and %{max}. Border width uses 0.5 px steps."
+
+        adjust_image: "Adjust background image"
+
+        image_scale: "Image scale (%)"
+
+        image_offset_x: "Horizontal offset (% of bar width)"
+
+        move_image: "Move background image. Use arrow keys; hold Shift for larger steps."
+
+        adjust_help: "Drag the image to move it; drag a corner to resize proportionally. Scale and horizontal offset are also available as numeric controls; vertical offset uses the setting on the left. Manual adjustment uses complete-image fitting. Pixels outside the left and right bar edges are cropped from the saved image. Editing a mobile fallback creates a separate mobile background."
+
+        opaque_fill: "Set bar fill to 100% opacity"
+
+        image_load_error: "The background image could not be loaded. Please upload it again."
+
+        image_prompt: "Example image prompt: Create a transparent PNG decoration %{width} px wide, with a transparent central strip approximately %{bar_height} px tall for the collapsed bar. Put artwork above and below that strip; choose the canvas height for the artwork and trim unused transparent outer margins. Do not draw a bar, border, solid background, text, avatar or buttons. The website supplies its own opaque fill and rounded border. Expanded lists cover more of the image; follow the actual preview guides."

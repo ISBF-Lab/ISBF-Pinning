@@ -12,7 +12,7 @@ plugins:
 
   isbf_pinning_bar_appearance:
     area: "interface"
-    default: '{"light":{"fill":"#f5f7faed","border":"#152c4624","border_width":1,"opacity":1,"x":50,"y":0,"fit":"contain","overflow":true},"dark":{"fill":"#192329d9","border":"#a0b4c426","border_width":1,"opacity":1,"x":50,"y":0,"fit":"contain","overflow":true}}'
+    default: '{"light":{"fill":"#f5f7faff","border":"#152c4624","border_width":1,"opacity":1,"x":50,"y":0,"fit":"contain","overflow":true},"dark":{"fill":"#192329ff","border":"#a0b4c426","border_width":1,"opacity":1,"x":50,"y":0,"fit":"contain","overflow":true}}'
     max_length: 2048
     validator: IsbfPinning::BarAppearanceValidator
     client: true

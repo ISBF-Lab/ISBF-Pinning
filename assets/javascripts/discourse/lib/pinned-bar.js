@@ -8,8 +8,8 @@ const common = {
 };
 
 export const DEFAULT_APPEARANCE = Object.freeze({
-  light: Object.freeze({ ...common, fill: "#f5f7faed", border: "#152c4624" }),
-  dark: Object.freeze({ ...common, fill: "#192329d9", border: "#a0b4c426" }),
+  light: Object.freeze({ ...common, fill: "#f5f7faff", border: "#152c4624" }),
+  dark: Object.freeze({ ...common, fill: "#192329ff", border: "#a0b4c426" }),
 });
 
 export const IMAGE_SETTINGS = ["light", "dark"].flatMap((mode) =>
@@ -66,6 +66,7 @@ export function backgroundGeometry({
   imageHeight,
   mobile,
   appearance,
+  imageTransform,
 }) {
   if (
     ![width, height, headerHeight, imageWidth, imageHeight].every(
@@ -75,19 +76,24 @@ export function backgroundGeometry({
     return null;
   }
   const referenceHeight = width * (mobile ? 320 / 900 : 400 / 1600);
-  const scale = Math[appearance.fit === "cover" ? "max" : "min"](
-    width / imageWidth,
-    referenceHeight / imageHeight
-  );
+  const fitScale =
+    appearance.fit === "cover"
+      ? Math.max(width / imageWidth, referenceHeight / imageHeight)
+      : width / imageWidth;
+  const scale = fitScale * (imageTransform?.scale || 1);
   const image = {
     width: imageWidth * scale,
     height: imageHeight * scale,
-    x: ((width - imageWidth * scale) * appearance.x) / 100,
+    x:
+      ((width - imageWidth * scale) * appearance.x) / 100 +
+      width * (imageTransform?.x || 0),
     y: (headerHeight - imageHeight * scale) / 2 + appearance.y,
   };
   return {
     width,
     height,
+    headerHeight,
+    transformScale: imageTransform?.scale || 1,
     imageWidth,
     imageHeight,
     image,
