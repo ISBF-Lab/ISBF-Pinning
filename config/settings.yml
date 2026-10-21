@@ -9,3 +9,47 @@ plugins:
     default: 0
     min: 0
     client: false
+
+  isbf_pinning_bar_appearance:
+    area: "interface"
+    default: '{"light":{"fill":"#f5f7faed","border":"#152c4624","border_width":1,"opacity":1,"x":50,"y":0,"fit":"contain","overflow":true},"dark":{"fill":"#192329d9","border":"#a0b4c426","border_width":1,"opacity":1,"x":50,"y":0,"fit":"contain","overflow":true}}'
+    max_length: 2048
+    validator: IsbfPinning::BarAppearanceValidator
+    client: true
+  isbf_pinning_bar_default_topic_id:
+    area: "interface"
+    default: 0
+    min: 0
+    client: false
+  isbf_pinning_bar_light_desktop_image:
+    area: "interface"
+    default: ""
+    type: upload
+    authorized_extensions: "png|webp|jpg|jpeg"
+    max_file_size_kb: 5120
+    validator: IsbfPinning::BarBackgroundValidator
+    client: true
+  isbf_pinning_bar_light_mobile_image:
+    area: "interface"
+    default: ""
+    type: upload
+    authorized_extensions: "png|webp|jpg|jpeg"
+    max_file_size_kb: 5120
+    validator: IsbfPinning::BarBackgroundValidator
+    client: true
+  isbf_pinning_bar_dark_desktop_image:
+    area: "interface"
+    default: ""
+    type: upload
+    authorized_extensions: "png|webp|jpg|jpeg"
+    max_file_size_kb: 5120
+    validator: IsbfPinning::BarBackgroundValidator
+    client: true
+  isbf_pinning_bar_dark_mobile_image:
+    area: "interface"
+    default: ""
+    type: upload
+    authorized_extensions: "png|webp|jpg|jpeg"
+    max_file_size_kb: 5120
+    validator: IsbfPinning::BarBackgroundValidator
+    client: true
