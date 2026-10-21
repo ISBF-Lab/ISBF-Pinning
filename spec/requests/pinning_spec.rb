@@ -8,7 +8,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
   fab!(:member) { Fabricate(:user, active: true, approved: true, trust_level: 1) }
   fab!(:high_trust) { Fabricate(:user, trust_level: 4) }
   fab!(:category)
-  fab!(:official_category) { Fabricate(:category) }
+  fab!(:official_category, :category)
   fab!(:topic) { Fabricate(:topic, category: category, user: member) }
   fab!(:first_post) { Fabricate(:post, topic: topic, user: member) }
 
@@ -23,9 +23,8 @@ RSpec.describe "ISBF timed home pinning", type: :request do
 
   def status_request(record = topic, actor: admin, **fields)
     sign_in(actor) if actor
-    put "/t/#{record.id}/status.json", params: {
-      status: "pinned_globally", enabled: true, isbf_home_pin: true,
-    }.merge(fields)
+    put "/t/#{record.id}/status.json",
+        params: { status: "pinned_globally", enabled: true, isbf_home_pin: true }.merge(fields)
   end
 
   def ids
@@ -34,8 +33,8 @@ RSpec.describe "ISBF timed home pinning", type: :request do
   end
 
   def make_topic(age:, home_pin: false, category_record: category, pinned_at: Time.current)
-    record = Fabricate(:topic, category: category_record, user: member,
-      created_at: age, bumped_at: age)
+    record =
+      Fabricate(:topic, category: category_record, user: member, created_at: age, bumped_at: age)
     Fabricate(:post, topic: record, user: member)
     if home_pin
       record.update_pinned(true, true, 10.days.from_now.iso8601)
@@ -65,12 +64,14 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     get "/site.json"
     expect(response.status).to eq(200), response.body
     expect(response.parsed_body["isbf_pinning"]).to include(
-      "version" => 1, "enabled" => true, "home_actions_enabled" => true,
+      "version" => 1,
+      "enabled" => true,
+      "home_actions_enabled" => true,
       "official_category_id" => official_category.id,
     )
   end
 
-  ["member", "moderator", "high_trust"].each do |name|
+  %w[member moderator high_trust].each do |name|
     it "rejects #{name} on native pin, global pin, retime, unpin and home scope routes" do
       actor = public_send(name)
       sign_in(actor)
@@ -78,7 +79,12 @@ RSpec.describe "ISBF timed home pinning", type: :request do
         [true, false].each do |enabled|
           status_request(actor: actor, status: status, enabled: enabled)
           expect(response.status).to eq(403), response.body
-          put "/t/#{topic.id}/status.json", params: { status: status, enabled: enabled, until: 3.days.from_now.iso8601 }
+          put "/t/#{topic.id}/status.json",
+              params: {
+                status: status,
+                enabled: enabled,
+                until: 3.days.from_now.iso8601,
+              }
           expect(response.status).to eq(403), response.body
         end
       end
@@ -117,7 +123,10 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     expect(response.status).to eq(200), response.body
     expect(response.parsed_body).to have_key("topic_status_update")
     expect(ActiveSupport::IsolatedExecutionState.key?(IsbfPinning::REQUEST_KEY)).to eq(false)
-    expect(response.parsed_body["isbf_home_pinning"]).to include("scoped" => false, "active" => false)
+    expect(response.parsed_body["isbf_home_pinning"]).to include(
+      "scoped" => false,
+      "active" => false,
+    )
     expect(topic.reload.pinned_at).to be_nil
 
     put "/t/#{topic.id}/status.json", params: { status: "pinned", enabled: true }
@@ -147,7 +156,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     end
 
     [false, true].each do |ineligible|
-      it "restores inherited state after a #{ineligible ? 'failed' : 'successful'} native status request" do
+      it "restores inherited state after a #{ineligible ? "failed" : "successful"} native status request" do
         sign_in(admin)
         first_post.update!(hidden: true) if ineligible
         [nil, { topic_id: -1 }].each do |previous|
@@ -221,9 +230,17 @@ RSpec.describe "ISBF timed home pinning", type: :request do
 
   it "blocks source field injection through normal posting, editing and direct topic update" do
     sign_in(member)
-    payload = { title: "Try a native pin bypass", raw: "Description of this campus topic.", category: category.id }
-    [ { pinned_at: Time.current.iso8601 }, { pinned_globally: true },
-      { topic_custom_fields: { isbf_home_pin: true } }, { custom_fields: { isbf_home_pin: true } } ].each do |fields|
+    payload = {
+      title: "Try a native pin bypass",
+      raw: "Description of this campus topic.",
+      category: category.id,
+    }
+    [
+      { pinned_at: Time.current.iso8601 },
+      { pinned_globally: true },
+      { topic_custom_fields: { isbf_home_pin: true } },
+      { custom_fields: { isbf_home_pin: true } },
+    ].each do |fields|
       post "/posts.json", params: payload.merge(fields)
       expect(response.status).to eq(403), response.body
       put "/posts/#{first_post.id}.json", params: { post: { raw: first_post.raw }.merge(fields) }
@@ -236,37 +253,68 @@ RSpec.describe "ISBF timed home pinning", type: :request do
 
   it "requires checked status requests for developer source field changes too" do
     sign_in(admin)
-    post "/posts.json", params: { title: "No pin through topic create", raw: "Details for this new campus topic.", category: category.id, pinned_at: Time.current.iso8601 }
+    post "/posts.json",
+         params: {
+           title: "No pin through topic create",
+           raw: "Details for this new campus topic.",
+           category: category.id,
+           pinned_at: Time.current.iso8601,
+         }
     expect(response.status).to eq(400), response.body
     expect(topic.reload.pinned_at).to be_nil
   end
 
   it "prevents bulk permission bypass and defaults developer bulk pins to three days" do
     sign_in(moderator)
-    put "/topics/bulk.json", params: { topic_ids: [topic.id], operation: { type: "pin", pinned_globally: true } }
+    put "/topics/bulk.json",
+        params: {
+          topic_ids: [topic.id],
+          operation: {
+            type: "pin",
+            pinned_globally: true,
+          },
+        }
     expect(response.status).to eq(403), response.body
     sign_in(admin)
     freeze_time
-    put "/topics/bulk.json", params: { topic_ids: [topic.id], operation: { type: "pin", pinned_globally: true } }
+    put "/topics/bulk.json",
+        params: {
+          topic_ids: [topic.id],
+          operation: {
+            type: "pin",
+            pinned_globally: true,
+          },
+        }
     expect(response.status).to eq(200), response.body
     expect(topic.reload.pinned_until).to eq(3.days.from_now.change(usec: 0))
     expect(topic.custom_fields[IsbfPinning::HOME_FIELD]).to be_nil
   end
 
-  it "sorts multiple home pins by pin time before normal created order and remains pinned after reading" do
+  it "keeps home pins in chronological feed positions and pin-time order in the bar after reading" do
     old_pin = make_topic(age: 8.days.ago, home_pin: true, pinned_at: 3.hours.ago)
     new_pin = make_topic(age: 9.days.ago, home_pin: true, pinned_at: 1.hour.ago)
     recent = make_topic(age: 1.hour.ago)
     older = make_topic(age: 2.hours.ago)
-    TopicUser.change(member.id, new_pin.id, cleared_pinned_at: Time.current,
-      last_read_post_number: 1)
+    TopicUser.change(
+      member.id,
+      new_pin.id,
+      cleared_pinned_at: Time.current,
+      last_read_post_number: 1,
+    )
     sign_in(member)
     get "/latest.json"
-    expect(ids.first(2)).to eq([new_pin.id, old_pin.id])
-    expect(ids.index(recent.id)).to be < ids.index(older.id)
+    sequence = [recent.id, older.id, old_pin.id, new_pin.id]
+    expect(ids & sequence).to eq(sequence)
     expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(true)
-    metadata = response.parsed_body.dig("topic_list", "topics").find { |t| t["id"] == new_pin.id }.fetch("isbf_home_pinning")
+    metadata =
+      response
+        .parsed_body
+        .dig("topic_list", "topics")
+        .find { |t| t["id"] == new_pin.id }
+        .fetch("isbf_home_pinning")
     expect(metadata).to include("active" => true, "can_manage" => false)
+    get "/isbf/pinning/topics.json"
+    expect(ids).to eq([new_pin.id, old_pin.id])
   end
 
   it "serializes home pins when optional companion home fields are absent" do
@@ -274,7 +322,12 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     sign_in(member)
     get "/latest.json"
     expect(ids).to include(record.id)
-    metadata = response.parsed_body.dig("topic_list", "topics").find { |t| t["id"] == record.id }.fetch("isbf_home_pinning")
+    metadata =
+      response
+        .parsed_body
+        .dig("topic_list", "topics")
+        .find { |t| t["id"] == record.id }
+        .fetch("isbf_home_pinning")
     expect(metadata).to include("active" => true, "scoped" => true)
   end
 
@@ -287,7 +340,12 @@ RSpec.describe "ISBF timed home pinning", type: :request do
         sign_in(member)
         get "/c/#{category.slug}/#{category.id}/l/latest.json"
         expect(ids).to include(record.id)
-        metadata = response.parsed_body.dig("topic_list", "topics").find { |t| t["id"] == record.id }.fetch("isbf_home_pinning")
+        metadata =
+          response
+            .parsed_body
+            .dig("topic_list", "topics")
+            .find { |t| t["id"] == record.id }
+            .fetch("isbf_home_pinning")
         expect(metadata).to include("active" => home_visible, "scoped" => true)
       end
     end
@@ -305,9 +363,10 @@ RSpec.describe "ISBF timed home pinning", type: :request do
   end
 
   it "paginates more home pins than one page without losing or repeating topics" do
-    records = 7.times.map do |i|
-      make_topic(age: (i + 10).days.ago, home_pin: true, pinned_at: (i + 1).hours.ago)
-    end
+    records =
+      7.times.map do |i|
+        make_topic(age: (i + 10).days.ago, home_pin: true, pinned_at: (i + 1).hours.ago)
+      end
     4.times { |i| records << make_topic(age: (i + 1).hours.ago) }
     sign_in(member)
     all = []
@@ -317,7 +376,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     end
     expect(all.uniq.size).to eq(all.size)
     expect(all).to include(*records.map(&:id))
-    expect(all.first(7)).to eq(records.first(7).map(&:id))
+    expect(all & records.map(&:id)).to eq((records.last(4) + records.first(7)).map(&:id))
   end
 
   it "restores ordinary ordering at the deadline even before the job clears native fields" do
@@ -327,7 +386,12 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     sign_in(member)
     get "/latest.json"
     expect(ids.index(recent.id)).to be < ids.index(record.id)
-    metadata = response.parsed_body.dig("topic_list", "topics").find { |t| t["id"] == record.id }.fetch("isbf_home_pinning")
+    metadata =
+      response
+        .parsed_body
+        .dig("topic_list", "topics")
+        .find { |t| t["id"] == record.id }
+        .fetch("isbf_home_pinning")
     expect(metadata["active"]).to eq(false)
   end
 
@@ -359,7 +423,8 @@ RSpec.describe "ISBF timed home pinning", type: :request do
   end
 
   it "marks only positive matching native official filter lists as scoped" do
-    q = "isbf-official:#{official_category.id} isbf-campus:shenzhen isbf-official-type:academic order:activity"
+    q =
+      "isbf-official:#{official_category.id} isbf-campus:shenzhen isbf-official-type:academic order:activity"
     query = TopicQuery.new(member, q: q)
     list = query.create_list(:filter)
     expect(list.isbf_home_pinning_scope).to eq(true)
@@ -368,16 +433,18 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     expect(list.isbf_home_pinning_scope).to eq(false)
   end
 
-  it "preserves legacy global pin behavior and personal clearing" do
+  it "keeps legacy pins at their feed dates and preserves personal clearing in the bar" do
     record = make_topic(age: 10.days.ago)
     record.update_pinned(true, true)
     recent = make_topic(age: 1.hour.ago)
     sign_in(member)
     get "/latest.json"
-    expect(ids.first).to eq(record.id)
-    TopicUser.change(member.id, record.id, cleared_pinned_at: 1.hour.from_now)
-    get "/latest.json"
     expect(ids.index(recent.id)).to be < ids.index(record.id)
+    get "/isbf/pinning/topics.json"
+    expect(ids).to include(record.id)
+    TopicUser.change(member.id, record.id, cleared_pinned_at: 1.hour.from_now)
+    get "/isbf/pinning/topics.json"
+    expect(ids).not_to include(record.id)
   end
 
   it "rejects hidden or opted-out first posts instead of letting a pin bypass homepage restrictions" do
@@ -404,10 +471,10 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     expect(response.status).to eq(403), response.body
     get "/latest.json"
     expect(ids.first).to eq(topic.id)
-    expect(topic.reload.pinned_at).to eq(pinned_at)
+    expect(topic.reload.pinned_at).to eq_time(pinned_at)
     status_request(enabled: false)
     expect(response.status).to eq(403), response.body
-    expect(topic.reload.pinned_at).to eq(pinned_at)
+    expect(topic.reload.pinned_at).to eq_time(pinned_at)
   end
 
   it "does not allow hidden categories to be exposed by a pin or the list metadata" do
@@ -422,7 +489,9 @@ RSpec.describe "ISBF timed home pinning", type: :request do
   end
 
   it "keeps Marketplace and Teamup home exclusions ahead of pagination with both plugins installed" do
-    skip "Companion plugins are validated on the existing site; isolated plugin CI does not load them" unless defined?(IsbfMarketplace) && defined?(IsbfTeamup)
+    unless defined?(IsbfMarketplace) && defined?(IsbfTeamup)
+      skip "Companion plugins are validated on the existing site; isolated plugin CI does not load them"
+    end
     market = Fabricate(:category)
     group = Fabricate(:category)
     SiteSetting.isbf_marketplace_category_id = market.id
@@ -442,13 +511,19 @@ RSpec.describe "ISBF timed home pinning", type: :request do
   end
 
   it "retains scoped ordering with the installed Official campus/type native filter" do
-    skip "Official integration requires Academy and Official plugins" unless defined?(IsbfOfficial) && IsbfOfficial.category_id
+    unless defined?(IsbfOfficial) && IsbfOfficial.category_id
+      skip "Official integration requires Academy and Official plugins"
+    end
     record = make_topic(age: 10.days.ago, home_pin: true, category_record: official_category)
     record.custom_fields["isbf_official_campuses"] = ["shenzhen"]
     record.custom_fields["isbf_official_types"] = ["academic"]
     record.save_custom_fields
     sign_in(member)
-    get "/filter.json", params: { q: "isbf-official:#{official_category.id} isbf-campus:shenzhen isbf-official-type:academic order:activity" }
+    get "/filter.json",
+        params: {
+          q:
+            "isbf-official:#{official_category.id} isbf-campus:shenzhen isbf-official-type:academic order:activity",
+        }
     expect(ids.first).to eq(record.id)
     expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(true)
   end

@@ -28,12 +28,14 @@ Internal native system-user category-definition creation is retained.
 
 The boolean Topic custom field `isbf_home_pin` marks newly scoped pins. Native `pinned_at`,
 `pinned_globally` and `pinned_until` provide timing and the existing `UnpinTopic` job. Pins
-are ordered in SQL before LIMIT/OFFSET, then ordinary topics by creation date and ID descending.
+are ordered by pin time in the dedicated bar. The unfiltered Latest feed keeps all original
+posts in creation-date and ID descending order before LIMIT/OFFSET, including pinned posts.
 Scope applies to the unfiltered Latest feed, the actual Official category Latest route and
 positive `isbf-official:<actual-id>` native filters (including campus/type selections).
 Marketplace and Teamup home filters compose before pagination. Scoped pins ignore personal
 read/cleared state. Other category/profile/search/market/team lists retain ordinary ordering;
-legacy category/global pins retain native behavior and personal clearing.
+legacy category/global pins retain native behavior outside the home feed and personal clearing
+in the bar. Official category and Official filter lists retain their existing pin priority.
 
 The current locked deadline is checked before a native expiry job acts, preventing an old
 running job from undoing a renewal. Expired scoped records lose priority immediately even if

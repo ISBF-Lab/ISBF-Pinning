@@ -13,7 +13,7 @@ module IsbfPinning
         AND EXISTS (SELECT 1 FROM posts WHERE posts.topic_id = topics.id AND posts.post_number = 1
           AND posts.deleted_at IS NULL AND NOT posts.hidden AND NOT posts.user_deleted)
       SQL
-      query.create_list(:latest, { limit: false }, topics)
+      query.create_list(:latest, { limit: false, isbf_pinning_bar: true }, topics)
     end
   end
 end
