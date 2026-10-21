@@ -8,11 +8,13 @@ import SiteSettingUpload from "discourse/admin/components/site-settings/upload";
 import Form from "discourse/components/form";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
-import { eq } from "discourse/truth-helpers";
+import { getURLWithCDN } from "discourse/lib/get-url";
+import { eq, not, or } from "discourse/truth-helpers";
 import DButton from "discourse/ui-kit/d-button";
 import DConditionalLoadingSpinner from "discourse/ui-kit/d-conditional-loading-spinner";
 import { i18n } from "discourse-i18n";
 import {
+  backgroundGeometry,
   DEFAULT_APPEARANCE,
   IMAGE_SETTINGS,
   imageSetting,
@@ -20,6 +22,7 @@ import {
 } from "discourse/plugins/isbf-pinning/discourse/lib/pinned-bar";
 import IsbfPinnedBarPreview from "./isbf-pinned-bar-preview";
 import IsbfPinnedColorControl from "./isbf-pinned-color-control";
+import IsbfPinnedImageAdjuster from "./isbf-pinned-image-adjuster";
 import IsbfPinnedNumberControl from "./isbf-pinned-number-control";
 
 const APPEARANCE = "isbf_pinning_bar_appearance";
@@ -42,6 +45,8 @@ export default class IsbfPinnedBarSettings extends Component {
   @tracked saved = false;
   @tracked saving = false;
   @tracked error = false;
+  @tracked adjusting = false;
+  @tracked previewGeometry;
 
   #form;
 
@@ -78,6 +83,54 @@ export default class IsbfPinnedBarSettings extends Component {
     });
   }
 
+  get currentImageKey() {
+    return imageSetting(this.mode, this.mobile ? "mobile" : "desktop");
+  }
+
+  get currentImageSource() {
+    return (
+      this.images[this.currentImageKey] ||
+      this.images[imageSetting(this.mode, "desktop")]
+    );
+  }
+
+  get imageTransform() {
+    let adjustment = this.draft?.image_adjustments?.[this.currentImageKey];
+    if (
+      this.mobile &&
+      !this.images[this.currentImageKey] &&
+      !adjustment?.edited
+    ) {
+      adjustment =
+        this.draft?.image_adjustments?.[imageSetting(this.mode, "desktop")];
+    }
+    return adjustment?.source === this.currentImageSource
+      ? { scale: adjustment.scale / 100, x: adjustment.offset_x / 100 }
+      : { scale: 1, x: 0 };
+  }
+
+  get adjustmentFields() {
+    return [
+      { key: "scale", min: 25, max: 400, step: 1 },
+      { key: "offset_x", min: -399, max: 399, step: 0.1 },
+    ].map((field) => ({
+      ...field,
+      label: i18n(`isbf_pinning.editor.image_${field.key}`),
+    }));
+  }
+
+  get imageGuidance() {
+    const width = this.mobile ? 900 : 1600;
+    const previewWidth =
+      this.previewGeometry?.width || (this.mobile ? 390 : 600);
+    const headerHeight =
+      this.previewGeometry?.headerHeight || (this.mobile ? 52 : 60);
+    return i18n("isbf_pinning.editor.image_prompt", {
+      width,
+      bar_height: Math.round((width * headerHeight) / previewWidth),
+    });
+  }
+
   get numberFields() {
     return [
       { key: "border_width", min: 0, max: 4, step: 0.5 },
@@ -96,6 +149,11 @@ export default class IsbfPinnedBarSettings extends Component {
       name: key,
       label: i18n(`isbf_pinning.editor.${key}`),
     }));
+  }
+
+  @action
+  measurePreview(geometry) {
+    this.previewGeometry = geometry;
   }
 
   @action
@@ -121,6 +179,17 @@ export default class IsbfPinnedBarSettings extends Component {
         ...Object.fromEntries(
           IMAGE_SETTINGS.map((name) => [name, values[name] || ""])
         ),
+        image_adjustments: Object.fromEntries(
+          IMAGE_SETTINGS.map((name) => [
+            name,
+            {
+              source: values[name] || "",
+              scale: 100,
+              offset_x: 0,
+              edited: false,
+            },
+          ])
+        ),
       };
       this.draft = structuredClone(this.data);
     } catch (error) {
@@ -141,18 +210,71 @@ export default class IsbfPinnedBarSettings extends Component {
   }
 
   @action
-  changeDraft(name, value, data) {
+  async changeDraft(name, value, data) {
     this.draft = structuredClone(data);
     this.saved = false;
+    if (IMAGE_SETTINGS.includes(name)) {
+      this.adjusting = false;
+      for (const [key, setting] of Object.entries({
+        source: value,
+        scale: 100,
+        offset_x: 0,
+        edited: false,
+      })) {
+        await this.#form.set(`image_adjustments.${name}.${key}`, setting);
+      }
+    }
+  }
+
+  @action
+  async toggleAdjustment() {
+    if (this.adjusting) {
+      this.adjusting = false;
+      return;
+    }
+    const base = `image_adjustments.${this.currentImageKey}`;
+    if (
+      this.draft.image_adjustments[this.currentImageKey].source !==
+      this.currentImageSource
+    ) {
+      const transform = this.imageTransform;
+      await this.#form.set(`${base}.source`, this.currentImageSource);
+      await this.#form.set(`${base}.scale`, transform.scale * 100);
+      await this.#form.set(`${base}.offset_x`, transform.x * 100);
+    }
+    await this.#form.set(`${base}.edited`, true);
+    await this.#form.set(`${this.mode}.fit`, "contain");
+    this.adjusting = true;
+  }
+
+  @action
+  async adjustImage({ scale, x, y }) {
+    if (this.saving) {
+      return;
+    }
+    const base = `image_adjustments.${this.currentImageKey}`;
+    await this.#form.set(`${base}.scale`, Math.round(scale * 10000) / 100);
+    await this.#form.set(`${base}.offset_x`, Math.round(x * 10000) / 100);
+    await this.#form.set(`${this.mode}.y`, Math.round(y * 100) / 100);
+  }
+
+  @action
+  makeOpaque() {
+    return this.#form.set(
+      `${this.mode}.fill`,
+      `${this.draft[this.mode].fill.slice(0, 7)}ff`
+    );
   }
 
   @action
   chooseMode(mode) {
+    this.adjusting = false;
     this.mode = mode;
   }
 
   @action
   chooseDevice(mobile) {
+    this.adjusting = false;
     this.mobile = mobile;
   }
 
@@ -183,6 +305,24 @@ export default class IsbfPinnedBarSettings extends Component {
 
   @action
   validate(data, { addError }) {
+    for (const name of IMAGE_SETTINGS) {
+      for (const property of this.adjustmentFields) {
+        const value = data.image_adjustments[name][property.key];
+        if (
+          !Number.isFinite(value) ||
+          value < property.min ||
+          value > property.max
+        ) {
+          addError(`image_adjustments.${name}.${property.key}`, {
+            title: property.label,
+            message: i18n("isbf_pinning.editor.invalid_number", {
+              min: property.min,
+              max: property.max,
+            }),
+          });
+        }
+      }
+    }
     for (const mode of ["light", "dark"]) {
       for (const key of ["fill", "border"]) {
         if (!/^#[\da-f]{8}$/i.test(data[mode]?.[key])) {
@@ -214,16 +354,16 @@ export default class IsbfPinnedBarSettings extends Component {
 
   @action
   async save(data) {
-    const values = {
-      [APPEARANCE]: JSON.stringify({ light: data.light, dark: data.dark }),
-      [DEFAULT_TOPIC]: Number(data.default_topic_id || 0),
-      ...Object.fromEntries(
-        IMAGE_SETTINGS.map((name) => [name, data[name] || ""])
-      ),
-    };
+    let values;
     this.saving = true;
     this.saved = false;
     try {
+      const images = await this.#cropImages(data);
+      values = {
+        [APPEARANCE]: JSON.stringify({ light: data.light, dark: data.dark }),
+        [DEFAULT_TOPIC]: Number(data.default_topic_id || 0),
+        ...images,
+      };
       await ajax("/admin/site_settings/bulk_update.json", {
         type: "PUT",
         data: {
@@ -241,9 +381,85 @@ export default class IsbfPinnedBarSettings extends Component {
     Object.entries(values).forEach(([name, value]) =>
       set(this.siteSettings, name, value)
     );
+    this.adjusting = false;
+    await this.load();
     this.saved = true;
     this.a11y.announce(i18n("isbf_pinning.editor.saved"));
     this.isbfPinnedBar.refresh();
+  }
+
+  async #cropImages(data) {
+    const images = Object.fromEntries(
+      IMAGE_SETTINGS.map((name) => [name, data[name] || ""])
+    );
+    for (const mode of ["light", "dark"]) {
+      for (const device of ["desktop", "mobile"]) {
+        const name = imageSetting(mode, device);
+        const adjustment = data.image_adjustments[name];
+        const source =
+          data[name] ||
+          (adjustment.edited && data[imageSetting(mode, "desktop")]);
+        if (!source) {
+          continue;
+        }
+        const dimensions = await this.#imageDimensions(source);
+        const transform =
+          adjustment.source === source
+            ? { scale: adjustment.scale / 100, x: adjustment.offset_x / 100 }
+            : { scale: 1, x: 0 };
+        const mobile = device === "mobile";
+        const width = mobile ? 390 : 600;
+        const geometry = backgroundGeometry({
+          width,
+          height: mobile ? 52 : 60,
+          headerHeight: mobile ? 52 : 60,
+          imageWidth: dimensions.width,
+          imageHeight: dimensions.height,
+          mobile,
+          appearance: data[mode],
+          imageTransform: transform,
+        });
+        const cropLeft = -geometry.image.x / geometry.image.width;
+        const cropWidth = width / geometry.image.width;
+        if (
+          Math.abs(cropLeft) < 0.000001 &&
+          Math.abs(cropWidth - 1) < 0.000001
+        ) {
+          images[name] = source;
+          continue;
+        }
+        const result = await ajax("/isbf/pinning/backgrounds/crop.json", {
+          type: "POST",
+          data: {
+            upload_url: source,
+            setting_name: name,
+            crop_left: cropLeft,
+            crop_width: cropWidth,
+          },
+        });
+        images[name] = result.url;
+      }
+    }
+    return images;
+  }
+
+  #imageDimensions(source) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      const timeout = setTimeout(
+        () => reject(new Error(i18n("isbf_pinning.editor.image_load_error"))),
+        15000
+      );
+      image.onload = () => {
+        clearTimeout(timeout);
+        resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      };
+      image.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error(i18n("isbf_pinning.editor.image_load_error")));
+      };
+      image.src = getURLWithCDN(source);
+    });
   }
 
   <template>
@@ -260,11 +476,13 @@ export default class IsbfPinnedBarSettings extends Component {
               <DButton
                 aria-pressed={{if (eq this.mode "light") "true" "false"}}
                 @action={{fn this.chooseMode "light"}}
+                @disabled={{this.saving}}
                 @label="isbf_pinning.editor.light"
               />
               <DButton
                 aria-pressed={{if (eq this.mode "dark") "true" "false"}}
                 @action={{fn this.chooseMode "dark"}}
+                @disabled={{this.saving}}
                 @label="isbf_pinning.editor.dark"
               />
             </div>
@@ -378,6 +596,33 @@ export default class IsbfPinnedBarSettings extends Component {
                       /></field.Control>
                   </form.Field>
                 {{/each}}
+                {{#if this.adjusting}}
+                  <form.Object @name="image_adjustments" as |adjustments|>
+                    <adjustments.Object
+                      @name={{this.currentImageKey}}
+                      as |image|
+                    >
+                      {{#each this.adjustmentFields key="key" as |property|}}
+                        <image.Field
+                          @disabled={{this.saving}}
+                          @format="full"
+                          @name={{property.key}}
+                          @title={{property.label}}
+                          @type="custom"
+                          as |field|
+                        >
+                          <field.Control><IsbfPinnedNumberControl
+                              @field={{field}}
+                              @label={{property.label}}
+                              @max={{property.max}}
+                              @min={{property.min}}
+                              @step={{property.step}}
+                            /></field.Control>
+                        </image.Field>
+                      {{/each}}
+                    </adjustments.Object>
+                  </form.Object>
+                {{/if}}
                 <form.Submit @label="isbf_pinning.editor.save" />
                 <DButton
                   @action={{this.resetMode}}
@@ -393,22 +638,37 @@ export default class IsbfPinnedBarSettings extends Component {
                   <DButton
                     aria-pressed={{if this.mobile "false" "true"}}
                     @action={{fn this.chooseDevice false}}
+                    @disabled={{this.saving}}
                     @label="isbf_pinning.editor.desktop"
                   />
                   <DButton
                     aria-pressed={{if this.mobile "true" "false"}}
                     @action={{fn this.chooseDevice true}}
+                    @disabled={{this.saving}}
                     @label="isbf_pinning.editor.mobile"
                   />
                   <DButton
                     aria-pressed={{if this.expanded "true" "false"}}
                     @action={{this.toggleExpanded}}
+                    @disabled={{this.saving}}
                     @label="isbf_pinning.editor.expanded"
                   />
                   <DButton
                     aria-pressed={{if this.guides "true" "false"}}
                     @action={{this.toggleGuides}}
+                    @disabled={{this.saving}}
                     @label="isbf_pinning.editor.guides"
+                  />
+                  <DButton
+                    aria-pressed={{if this.adjusting "true" "false"}}
+                    @action={{this.toggleAdjustment}}
+                    @disabled={{or this.saving (not this.currentImageSource)}}
+                    @label="isbf_pinning.editor.adjust_image"
+                  />
+                  <DButton
+                    @action={{this.makeOpaque}}
+                    @disabled={{this.saving}}
+                    @label="isbf_pinning.editor.opaque_fill"
                   />
                 </div>
                 {{#if this.guides}}<p>{{i18n
@@ -421,16 +681,34 @@ export default class IsbfPinnedBarSettings extends Component {
                     @expanded={{this.expanded}}
                     @guides={{this.guides}}
                     @images={{this.images}}
+                    @imageTransform={{this.imageTransform}}
                     @mobile={{this.mobile}}
                     @mode={{this.mode}}
+                    @onGeometry={{this.measurePreview}}
                     @onToggle={{this.toggleExpanded}}
                     @topics={{this.isbfPinnedBar.topics}}
                   />
+                  {{#if this.adjusting}}
+                    <IsbfPinnedImageAdjuster
+                      @appearance={{this.draft}}
+                      @defaultTopicId={{this.draft.default_topic_id}}
+                      @disabled={{this.saving}}
+                      @images={{this.images}}
+                      @imageTransform={{this.imageTransform}}
+                      @mobile={{this.mobile}}
+                      @mode={{this.mode}}
+                      @onChange={{this.adjustImage}}
+                      @topics={{this.isbfPinnedBar.topics}}
+                    />
+                  {{/if}}
                 {{else}}
                   <p>{{i18n "isbf_pinning.editor.no_topics"}}</p>
                 {{/if}}
                 <h3>{{i18n "isbf_pinning.editor.image_requirements"}}</h3>
                 <p>{{i18n "isbf_pinning.editor.image_help"}}</p>
+                <p
+                  class="isbf-pinning-editor__image-guidance"
+                >{{this.imageGuidance}}</p>
               </aside>
             </div>
           {{/if}}

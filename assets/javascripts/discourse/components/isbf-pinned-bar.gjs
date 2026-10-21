@@ -65,21 +65,9 @@ export default class IsbfPinnedBar extends Component {
               imageHeight: image.naturalHeight,
               mobile,
               appearance,
+              imageTransform: this.args.imageTransform,
             })
           : null;
-        if (geometry) {
-          const barBox = element.getBoundingClientRect();
-          const scale = barBox.height / height || 1;
-          geometry.paintBelow = feed
-            ? Math.min(
-                geometry.below,
-                Math.max(
-                  0,
-                  (feed.getBoundingClientRect().bottom - barBox.bottom) / scale
-                )
-              )
-            : geometry.below;
-        }
         if (JSON.stringify(geometry) !== JSON.stringify(this.geometry)) {
           this.geometry = geometry;
           this.args.onGeometry?.(geometry);
@@ -200,8 +188,10 @@ export default class IsbfPinnedBar extends Component {
 
   get style() {
     const config = this.appearance;
+    const above = config.overflow ? this.geometry?.above || 0 : 0;
+    const below = config.overflow ? this.geometry?.below || 0 : 0;
     return trustHTML(
-      `--pin-fill:${config.fill};--pin-border:${config.border};--pin-border-width:${config.border_width}px;--pin-image-opacity:${config.opacity}`
+      `--pin-fill:${config.fill};--pin-border:${config.border};--pin-border-width:${config.border_width}px;--pin-image-opacity:${config.opacity};--pin-overflow-above:${above}px;--pin-overflow-below:${below}px`
     );
   }
 
@@ -215,14 +205,6 @@ export default class IsbfPinnedBar extends Component {
       : undefined;
   }
 
-  get backgroundStyle() {
-    const above = this.geometry?.above || 0;
-    const below = this.geometry?.paintBelow || 0;
-    return trustHTML(
-      `--pin-overflow-above:${above}px;--pin-overflow-below:${below}px`
-    );
-  }
-
   @action
   toggle() {
     this.expanded = !this.isExpanded;
@@ -231,102 +213,107 @@ export default class IsbfPinnedBar extends Component {
 
   <template>
     {{#if this.visible}}
-      <section
-        aria-label={{i18n "isbf_pinning.bar.label"}}
-        class={{dConcatClass
-          "isbf-pinned-bar"
-          (if this.isExpanded "is-expanded")
-          (if this.isMobile "--mobile")
-        }}
-        data-color-mode={{this.colorMode}}
-        style={{this.style}}
-        ...attributes
-        {{this.measure this.appearance this.imageUrl this.isMobile}}
-      >
-        {{#if this.imageUrl}}
-          <div
-            aria-hidden="true"
-            class={{dConcatClass
-              "isbf-pinned-bar__background"
-              (unless this.appearance.overflow "is-clipped")
-            }}
-            style={{this.backgroundStyle}}
-          >
-            <img
-              alt=""
+      <div class="isbf-pinned-bar-space" style={{this.style}}>
+        <section
+          aria-label={{i18n "isbf_pinning.bar.label"}}
+          class={{dConcatClass
+            "isbf-pinned-bar"
+            (if this.isExpanded "is-expanded")
+            (if this.isMobile "--mobile")
+          }}
+          data-color-mode={{this.colorMode}}
+          ...attributes
+          {{this.measure
+            this.appearance
+            this.imageUrl
+            this.isMobile
+            @imageTransform
+          }}
+        >
+          {{#if this.imageUrl}}
+            <div
+              aria-hidden="true"
               class={{dConcatClass
-                "isbf-pinned-bar__image"
-                (if this.geometry "is-measured")
+                "isbf-pinned-bar__background"
+                (unless this.appearance.overflow "is-clipped")
               }}
-              draggable="false"
-              src={{this.imageUrl}}
-              style={{this.imageStyle}}
-            />
-          </div>
-        {{/if}}
-        <DButton
-          aria-controls={{this.panelId}}
-          aria-expanded={{if this.isExpanded "true" "false"}}
-          class="isbf-pinned-bar__toggle"
-          @action={{this.toggle}}
-        >
-          <span class="isbf-pinned-bar__label">{{dIcon "thumbtack"}}
-            {{i18n "isbf_pinning.bar.label"}}</span>
-          <span class="isbf-pinned-bar__count">{{i18n
-              "isbf_pinning.bar.count"
-              count=this.topics.length
-            }}</span>
-          <span aria-hidden="true" class="isbf-pinned-bar__divider"></span>
-          <span class="isbf-pinned-bar__authors">
-            {{#each this.shownAuthors key="id" as |author|}}
-              <span class="isbf-pinned-bar__avatar">{{dAvatar
-                  author
-                  imageSize="small"
-                }}</span>
-            {{/each}}
-            {{#if this.moreAuthors}}<span
-                class="isbf-pinned-bar__more"
-              >+{{this.moreAuthors}}</span>{{/if}}
-          </span>
-          <span class="isbf-pinned-bar__title">{{this.defaultTitle}}</span>
-          <span aria-hidden="true" class="isbf-pinned-bar__chevron">{{dIcon
-              "chevron-down"
-            }}</span>
-        </DButton>
-        <div
-          class="isbf-pinned-bar__expansion"
-          inert={{unless this.isExpanded true}}
-        >
-          <div class="isbf-pinned-bar__clip">
-            <ul class="isbf-pinned-bar__list" id={{this.panelId}}>
-              {{#each this.rows key="id" as |topic|}}
-                <li class="isbf-pinned-bar__item">
-                  <a class="isbf-pinned-bar__link" href={{topic.href}}>
-                    <span class="isbf-pinned-bar__author-avatar">{{dAvatar
-                        topic.isbf_pin_author
-                        imageSize="large"
-                      }}</span>
-                    <span class="isbf-pinned-bar__content">
-                      <span class="isbf-pinned-bar__meta">{{topic.authorName}}
-                        <span>·
-                          <time
-                            datetime={{topic.created_at}}
-                          >{{topic.date}}</time></span></span>
-                      <span
-                        class="isbf-pinned-bar__post-title"
-                      >{{topic.title}}</span>
-                      <span
-                        class="isbf-pinned-bar__excerpt"
-                      >{{topic.excerpt}}</span>
-                    </span>
-                    {{dIcon "chevron-right"}}
-                  </a>
-                </li>
+            >
+              <img
+                alt=""
+                class={{dConcatClass
+                  "isbf-pinned-bar__image"
+                  (if this.geometry "is-measured")
+                }}
+                draggable="false"
+                src={{this.imageUrl}}
+                style={{this.imageStyle}}
+              />
+            </div>
+          {{/if}}
+          <DButton
+            aria-controls={{this.panelId}}
+            aria-expanded={{if this.isExpanded "true" "false"}}
+            class="isbf-pinned-bar__toggle"
+            @action={{this.toggle}}
+          >
+            <span class="isbf-pinned-bar__label">{{dIcon "thumbtack"}}
+              {{i18n "isbf_pinning.bar.label"}}</span>
+            <span class="isbf-pinned-bar__count">{{i18n
+                "isbf_pinning.bar.count"
+                count=this.topics.length
+              }}</span>
+            <span aria-hidden="true" class="isbf-pinned-bar__divider"></span>
+            <span class="isbf-pinned-bar__authors">
+              {{#each this.shownAuthors key="id" as |author|}}
+                <span class="isbf-pinned-bar__avatar">{{dAvatar
+                    author
+                    imageSize="small"
+                  }}</span>
               {{/each}}
-            </ul>
+              {{#if this.moreAuthors}}<span
+                  class="isbf-pinned-bar__more"
+                >+{{this.moreAuthors}}</span>{{/if}}
+            </span>
+            <span class="isbf-pinned-bar__title">{{this.defaultTitle}}</span>
+            <span aria-hidden="true" class="isbf-pinned-bar__chevron">{{dIcon
+                "chevron-down"
+              }}</span>
+          </DButton>
+          <div
+            class="isbf-pinned-bar__expansion"
+            inert={{unless this.isExpanded true}}
+          >
+            <div class="isbf-pinned-bar__clip">
+              <ul class="isbf-pinned-bar__list" id={{this.panelId}}>
+                {{#each this.rows key="id" as |topic|}}
+                  <li class="isbf-pinned-bar__item">
+                    <a class="isbf-pinned-bar__link" href={{topic.href}}>
+                      <span class="isbf-pinned-bar__author-avatar">{{dAvatar
+                          topic.isbf_pin_author
+                          imageSize="large"
+                        }}</span>
+                      <span class="isbf-pinned-bar__content">
+                        <span class="isbf-pinned-bar__meta">{{topic.authorName}}
+                          <span>·
+                            <time
+                              datetime={{topic.created_at}}
+                            >{{topic.date}}</time></span></span>
+                        <span
+                          class="isbf-pinned-bar__post-title"
+                        >{{topic.title}}</span>
+                        <span
+                          class="isbf-pinned-bar__excerpt"
+                        >{{topic.excerpt}}</span>
+                      </span>
+                      {{dIcon "chevron-right"}}
+                    </a>
+                  </li>
+                {{/each}}
+              </ul>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     {{/if}}
   </template>
 }

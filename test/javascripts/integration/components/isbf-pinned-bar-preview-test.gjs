@@ -142,18 +142,15 @@ module("Integration | Component | IsbfPinnedBarPreview", function (hooks) {
     assert.dom(".isbf-pinned-bar").hasAttribute("data-color-mode", "dark");
   });
 
-  test("a tall decoration extends within the feed without adding empty scroll space", async function (assert) {
+  test("a tall decoration reserves its visible height without covering the adjacent feed", async function (assert) {
     await render(
       <template>
-        <div
-          class="contents"
-          style="padding:20px;min-height:250px"
-        ><IsbfPinnedBar
+        <div class="contents" style="padding:0"><IsbfPinnedBar
             @appearance={{this.appearance}}
             @images={{this.images}}
             @mode="light"
             @topics={{this.topics}}
-          /><p>Ordinary feed content</p></div>
+          /><p style="margin:0">Ordinary feed content</p></div>
       </template>
     );
     await waitUntil(
@@ -168,14 +165,32 @@ module("Integration | Component | IsbfPinnedBarPreview", function (hooks) {
       frame.top < bar.getBoundingClientRect().top,
       "the decoration can extend above the bar"
     );
-    assert.true(
-      frame.bottom <= feed.bottom + 0.5,
-      "the decoration cannot extend past the actual feed and create empty scroll space"
+    assert.closeTo(
+      frame.top,
+      feed.top,
+      0.5,
+      "the image meets the upper boundary"
+    );
+    assert.closeTo(
+      frame.bottom,
+      document.querySelector(".contents > p").getBoundingClientRect().top,
+      0.5,
+      "the following post starts at the artwork's lower boundary"
     );
     assert.strictEqual(
       bar.offsetHeight,
       bar.querySelector(".isbf-pinned-bar__toggle").offsetHeight,
-      "the image adds no layout height"
+      "the compact bar retains its own height"
+    );
+    assert.strictEqual(
+      getComputedStyle(bar, "::after").zIndex,
+      "3",
+      "the native rounded border stays above every layer"
+    );
+    assert.strictEqual(
+      getComputedStyle(bar, "::before").zIndex,
+      "1",
+      "opaque fill masks the picture inside the frame"
     );
   });
 });

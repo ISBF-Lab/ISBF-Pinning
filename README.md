@@ -1,8 +1,9 @@
 # ISBF Pinning
 
 Native Discourse timed pins with developer-only human control and an ISBF home-feed scope.
-No Core edits, database tables, upload endpoints or replacement topic infrastructure.
-The homepage bar uses a read-only list endpoint and the native settings/upload APIs.
+No Core edits, database tables or replacement topic infrastructure.
+The homepage bar uses a read-only list endpoint. Its appearance editor reuses native
+upload/settings storage and provides an admin-only endpoint for derived image crops.
 See [Pinned bar and appearance editor](docs/PINNED_BAR.md) for configuration, geometry,
 permissions, compatibility and validation details.
 

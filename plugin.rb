@@ -2,7 +2,7 @@
 
 # name: isbf-pinning
 # about: Native ISBF home pins with a collapsible bar and developer appearance settings.
-# version: 0.2.1
+# version: 0.3.0
 # authors: ISBF Lab
 # url: https://github.com/ISBF-Lab/ISBF-Pinning
 # required_version: 3.4.0
@@ -24,6 +24,8 @@ after_initialize do
   require_relative "lib/isbf_pinning/bar_topics"
   require_relative "lib/isbf_pinning/bar_upload"
   require_relative "lib/isbf_pinning/bar_serializers"
+  require_relative "lib/isbf_pinning/bar_image_crop"
+  require_relative "lib/isbf_pinning/crop_bar_background"
 
   module ::IsbfPinning
     class Engine < ::Rails::Engine
@@ -44,9 +46,36 @@ after_initialize do
         )
       end
     end
+
+    class BarBackgroundCropsController < ::ApplicationController
+      requires_plugin "isbf-pinning"
+      requires_login
+
+      def create
+        IsbfPinning.ensure_developer!(current_user)
+        RateLimiter.new(current_user, "isbf-pinning-background-crop", 10, 1.minute).performed!
+        CropBarBackground.call(service_params) do
+          on_success do |cropped_upload:|
+            render json: UploadSerializer.new(cropped_upload, root: false).as_json, status: :created
+          end
+          on_failed_policy(:can_edit_background) { raise Discourse::InvalidAccess }
+          on_failed_contract { render json: failed_json, status: :bad_request }
+          on_model_not_found(:source_upload) { raise Discourse::NotFound }
+          on_failure do
+            render json: {
+                     errors: [I18n.t("isbf_pinning.invalid_background_crop")],
+                   },
+                   status: :unprocessable_entity
+          end
+        end
+      end
+    end
   end
 
-  IsbfPinning::Engine.routes.draw { get "/topics" => "bar_topics#index" }
+  IsbfPinning::Engine.routes.draw do
+    get "/topics" => "bar_topics#index"
+    post "/backgrounds/crop" => "bar_background_crops#create"
+  end
   Discourse::Application.routes.append { mount ::IsbfPinning::Engine, at: "/isbf/pinning" }
   UploadCreator.prepend(IsbfPinning::BarUpload)
   UploadsController.prepend(IsbfPinning::BarUploadController)

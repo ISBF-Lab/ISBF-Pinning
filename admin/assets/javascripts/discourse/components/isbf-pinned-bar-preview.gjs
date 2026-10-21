@@ -38,17 +38,18 @@ export default class IsbfPinnedBarPreview extends Component {
 
   get style() {
     const geometry = this.geometry;
-    const above = geometry?.above || 0;
-    const below = geometry?.below || 0;
-    const image = geometry?.image;
+    const overflow = this.args.appearance[this.args.mode].overflow;
+    const above = overflow ? geometry?.above || 0 : 0;
+    const below = overflow ? geometry?.below || 0 : 0;
     return trustHTML(
-      `--preview-width:${this.args.mobile ? 390 : 600}px;--preview-above:${above}px;--preview-below:${below}px;--preview-bar-height:${geometry?.height || 0}px;--preview-image-top:${above + (image?.y || 0)}px;--preview-image-left:${image?.x || 0}px;--preview-image-width:${image?.width || 0}px;--preview-image-height:${image?.height || 0}px`
+      `--preview-width:${this.args.mobile ? 390 : 600}px;--preview-above:${above}px;--preview-below:${below}px;--preview-bar-height:${geometry?.height || 0}px`
     );
   }
 
   @action
   measure(geometry) {
     this.geometry = geometry;
+    this.args.onGeometry?.(geometry);
   }
 
   <template>
@@ -67,6 +68,7 @@ export default class IsbfPinnedBarPreview extends Component {
           @defaultTopicId={{@defaultTopicId}}
           @expanded={{@expanded}}
           @images={{@images}}
+          @imageTransform={{@imageTransform}}
           @mobile={{@mobile}}
           @mode={{@mode}}
           @onGeometry={{this.measure}}
