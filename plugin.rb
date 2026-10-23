@@ -2,7 +2,7 @@
 
 # name: isbf-pinning
 # about: Native ISBF home pins with a collapsible bar and developer appearance settings.
-# version: 0.3.0
+# version: 0.3.1
 # authors: ISBF Lab
 # url: https://github.com/ISBF-Lab/ISBF-Pinning
 # required_version: 3.4.0
@@ -114,6 +114,9 @@ after_initialize do
   TopicList.prepend(IsbfPinning::HomeList)
   add_to_serializer(:topic_list, :isbf_home_pinning_scope) do
     object.isbf_home_pinning_scope == true
+  end
+  add_to_serializer(:topic_list, :isbf_home_feed_chronological) do
+    object.isbf_home_feed_chronological == true
   end
 
   register_modifier(:topic_query_create_list_topics) do |topics, options, query|
