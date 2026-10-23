@@ -56,6 +56,7 @@ module IsbfPinning
 
   module HomeList
     attr_accessor :isbf_home_pinning_scope
+    attr_accessor :isbf_home_feed_chronological
   end
 
   module NativeQueries
@@ -96,6 +97,8 @@ module IsbfPinning
       result = super
       result.isbf_home_pinning_scope =
         isbf_home_pin_query? && (!isbf_home_feed_query? || options[:isbf_pinning_bar] == true)
+      result.isbf_home_feed_chronological =
+        isbf_home_feed_query? && options[:isbf_pinning_bar] != true
       result
     ensure
       @isbf_home_pin_query = previous

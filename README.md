@@ -19,6 +19,10 @@ Native topic-list responses include boolean `topic_list.isbf_home_pinning_scope`
 must not infer ordering from the current screen or an unrelated background request.
 The chronological home feed reports this flag as false so existing clients retain the
 server's date order; the dedicated bar and Official pin-priority lists report true.
+`topic_list.isbf_home_feed_chronological` separately identifies the chronological home
+feed. After native new/updated-topic insertion, its loaded topics are sorted again by
+creation date and ID, so replies to an older pinned or ordinary post cannot lift it
+above newer posts. Other lists keep native insertion and pin-priority behavior.
 
 Only the underlying User `admin` column authorizes human pinning, renewal and cancellation.
 On this installation that is the developer role; renamed moderator, official memberships,

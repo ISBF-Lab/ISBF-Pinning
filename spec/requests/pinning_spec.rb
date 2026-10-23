@@ -305,6 +305,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     get "/latest.json"
     expect(ids & sequence).to eq(sequence)
     expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(false)
+    expect(response.parsed_body.dig("topic_list", "isbf_home_feed_chronological")).to eq(true)
     sign_in(member)
     get "/latest.json"
     expect(ids & sequence).to eq(sequence)
@@ -319,6 +320,19 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     get "/isbf/pinning/topics.json"
     expect(ids).to eq([new_pin.id, old_pin.id])
     expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(true)
+    expect(response.parsed_body.dig("topic_list", "isbf_home_feed_chronological")).to eq(false)
+  end
+
+  it "marks incremental home updates as chronological without including unrelated topics" do
+    pin = make_topic(age: 10.days.ago, home_pin: true)
+    updated = make_topic(age: 2.days.ago)
+    recent = make_topic(age: 1.hour.ago)
+    sign_in(member)
+
+    get "/latest.json", params: { topic_ids: [pin.id, recent.id, updated.id].join(",") }
+
+    expect(ids).to eq([recent.id, updated.id, pin.id])
+    expect(response.parsed_body.dig("topic_list", "isbf_home_feed_chronological")).to eq(true)
   end
 
   it "serializes home pins when optional companion home fields are absent" do
@@ -364,6 +378,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     sign_in(member)
     get "/latest.json", params: { order: "created", ascending: "true" }
     expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(false)
+    expect(response.parsed_body.dig("topic_list", "isbf_home_feed_chronological")).to eq(false)
   end
 
   it "paginates more home pins than one page without losing or repeating topics" do
@@ -424,6 +439,7 @@ RSpec.describe "ISBF timed home pinning", type: :request do
     expect(ids).to include(recent.id)
     expect(ids).not_to include(topic.id)
     expect(response.parsed_body.dig("topic_list", "isbf_home_pinning_scope")).to eq(true)
+    expect(response.parsed_body.dig("topic_list", "isbf_home_feed_chronological")).to eq(false)
   end
 
   it "marks only positive matching native official filter lists as scoped" do
